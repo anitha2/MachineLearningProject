@@ -1,0 +1,142 @@
+---
+title: "Predict Activity on Weight Lifting Dataset"
+author: "Anitha"
+date: "October 24, 2015"
+output: html_document
+---
+<span  font-family:Georgia; >
+
+### Objective
+The goal of this project is to predict human activity based on their exercise movement sensed by body sensors. Hence we use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants which is available from the website here: http://groupware.les.inf.puc-rio.br/har. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. This is the "classe" variable in the data set. 
+
+- Class A : Exactly according to the specification
+- Class B : Throwing the elbows to the front
+- Class C : Lifting the dumbbell only halfway
+- Class D : Lowering the dumbbell only halfway
+- Class E : Throwing the hips to the front
+</span>
+
+In this project we were asked to create a report describing after applying various data cleanup and preprossesing techniques,  the best predicton model was built to predict 20 observations from a test dataset.  
+
+### Reading the raw Input data:
+
+Download both training and test data set from the link. To reproduce the same result use the same pseudo random seed as below. 
+
+```{r  warning=FALSE,message=FALSE, c}
+library(caret);library(rpart);library(randomForest);
+
+setwd("C:/Anitha/R-work/MachineLearningProject");
+set.seed(12345)
+ 
+setInternet2(TRUE)
+# Read data from URL 
+#download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", destfile="./data/pml-testing.csv", method= "auto")
+#download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", destfile="./data/pml-training.csv", method= "auto")
+Oritraindata <- read.csv("./data/pml-training.csv", na.strings=c("NA",""), header=TRUE)
+Oritest <- read.csv("./data/pml-testing.csv", na.strings=c("NA",""), header=TRUE)
+
+# Checking for the number of variables and observations
+cat("Training : ",dim(Oritraindata)); cat("Test : ", dim(Oritest));
+```
+
+### Data Cleaning :
+
+Before we partition the training data for to create the model, we remove the unnecessary variables out of 160 variables from the dataset such as variables containing more than 50% of the NA values and near zero covariates (predictors).
+
+```{r  warning='FALSE', cache=TRUE}
+Cleandata <- function(dataFrame){
+# 1.  Deleting variables containing timestamp and window size which are not used ( Columns 1 to 7)
+
+subtraindata <- dataFrame[,-c(1:7)] 
+
+# 2. Remove near Zero covariates  
+    nzv <- nearZeroVar(subtraindata,saveMetrics = TRUE)
+    subsetTraining <- subtraindata[,!as.logical(nzv$nzv)]
+# 3. Cleaning Variables with too many NAs for Variables that have more than a 50% threshold of NA's 
+trainNa <- subsetTraining  
+   for(i in 1:length(subsetTraining)) {  
+        if( sum( is.na( subsetTraining[, i] ) ) /nrow(subsetTraining) >= .5 ) { #if n?? NAs > 50% 
+        for(j in 1:length(trainNa)) {
+            if( length( grep(names(subsetTraining[i]), names(trainNa)[j]) ) ==1)  { 
+                trainNa <- trainNa[ , -j] #Remove that column
+            }   
+        } 
+    }
+  }
+  newtraining <- trainNa
+}
+Cleantrain<-Cleandata(Oritraindata);
+dim(Cleantrain); 
+```
+
+All together, excluding the "classe" variable there are 52 covariates are important predictors variable. 
+
+### Data Partition 
+To train the model first we need to partition the input training data into 2 sets as myTrain (75%) and myValidation (25%). Then later the barPlot of the outcome variable "classe" is plotted which contains 5 levels (A,B,C,D,E)  will allow us to see the frequency of each levels in the subTraining data set and compare one another.
+
+```{r cache=TRUE}
+# split data into two parts
+inTrain <- createDataPartition(y=Cleantrain$classe, p=0.75, list=FALSE)
+myTrain <- Cleantrain[inTrain,]
+myValidation <- Cleantrain[-inTrain,]
+plot(myTrain$classe,xlab = "Classe", col="green", main = "Histogram of Classe")
+```
+
+From the plot we can see that each level frequency are more or less equal to each other except Level A is the most frequent with more than 4000 occurrences.
+
+### Prediction Model Construction: 
+Apply to 2 different learning methods such as  classification tree  and random forest to generate the best fitted model and the test our dataset against them as shown below.
+
+```{r cache=TRUE}
+## Decision tree model
+DTmodel <- train(classe ~ ., method="rpart",data=myTrain)
+prediction1 <- predict(DTmodel, myTrain)
+dtCM<-confusionMatrix(prediction1, myTrain$classe)
+dtCM
+
+## Random forest Model
+RFModel <- train(classe ~ ., data = myTrain, method="rf", importance=TRUE);
+prediction2 <- predict(RFModel, myTrain)
+rfCM<-confusionMatrix(prediction2, myTrain$classe)
+rfCM
+```
+
+Based on our results from both the algorithm, the Random Forest(100%) prediction was better than decision tree (55.3%) method. Obviously our RFmodel performs more accurate against the training set and overfit the dataset. 
+
+### Cross-Validation and Model Evaluation
+
+To evaluate the random forest model we need to find the cross validation error by testing the model against the 'myValidation' set and find the expected out-of-sample error using  "1-accuracy" from the algorithm result as shown below .
+
+```{r}
+testpred <- predict(RFModel, myValidation)
+rfCMtest<-confusionMatrix(testpred, myValidation$classe)
+cat("Out of sample error:" , (1-rfCMtest$overall[1]))
+```
+
+The estimated out-of-sample error is 1 - the model accuracy is 0.713% for predictions made against the cross-validation set. Hence we choose RF model as our predictor model than decision tree .
+
+## Test dataset Prediction
+
+Finally we test our RFmodel against original test data set which consist of 20 cases and write the prediction result into the file as requested in this project. As our RFModel gives an accuracy above 99% on our cross-validation data, we can expect only very few, or none, of the test samples will be missclassified.
+
+```{r}
+test20pred <- predict(RFModel, Oritest)
+test20pred
+
+# Write files for Project submission
+write_opfile = function(x){  
+  for(i in 1:length(x)){
+    filename = paste0("./output/Output_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+write_opfile(test20pred)
+
+```
+
+## Conclusion:
+
+Overall, the model is well developed to predict the exercise classes during weight lifting with an accuracy of 99% based on data collected from 6 young health participants. However, we canot expect the model to predict experiments with elderly people and/or using different device, the model may need to retrain/fail to perform well as shown in the analysis.
+
+</span>
