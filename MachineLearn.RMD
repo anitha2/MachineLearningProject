@@ -29,7 +29,7 @@ setwd("C:/Anitha/R-work/MachineLearningProject");
 set.seed(12345)
  
 setInternet2(TRUE)
-# Read data from URL 
+# Read data from URL is commented to read from url all time
 #download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", destfile="./data/pml-testing.csv", method= "auto")
 #download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", destfile="./data/pml-training.csv", method= "auto")
 Oritraindata <- read.csv("./data/pml-training.csv", na.strings=c("NA",""), header=TRUE)
@@ -72,11 +72,11 @@ dim(Cleantrain);
 All together, excluding the "classe" variable there are 52 covariates are important predictors variable. 
 
 ### Data Partition 
-To train the model first we need to partition the input training data into 2 sets as myTrain (75%) and myValidation (25%). Then later the barPlot of the outcome variable "classe" is plotted which contains 5 levels (A,B,C,D,E)  will allow us to see the frequency of each levels in the subTraining data set and compare one another.
+To train the model first we need to partition the input training data into 2 sets as myTrain (70%) and myValidation (30%). Then later the barPlot of the outcome variable "classe" is plotted which contains 5 levels (A,B,C,D,E)  will allow us to see the frequency of each levels in the subTraining data set and compare one another.
 
 ```{r cache=TRUE}
 # split data into two parts
-inTrain <- createDataPartition(y=Cleantrain$classe, p=0.75, list=FALSE)
+inTrain <- createDataPartition(y=Cleantrain$classe, p=0.7, list=FALSE)
 myTrain <- Cleantrain[inTrain,]
 myValidation <- Cleantrain[-inTrain,]
 plot(myTrain$classe,xlab = "Classe", col="green", main = "Histogram of Classe")
@@ -95,13 +95,13 @@ dtCM<-confusionMatrix(prediction1, myTrain$classe)
 dtCM
 
 ## Random forest Model
-RFModel <- train(classe ~ ., data = myTrain, method="rf", importance=TRUE);
+RFModel <- randomForest(classe ~. , data=myTrain);
 prediction2 <- predict(RFModel, myTrain)
 rfCM<-confusionMatrix(prediction2, myTrain$classe)
 rfCM
 ```
 
-Based on our results from both the algorithm, the Random Forest(100%) prediction was better than decision tree (55.3%) method. Obviously our RFmodel performs more accurate against the training set and overfit the dataset. 
+Based on our results from both the algorithm, the Random Forest(100%) prediction was better than decision tree (49.58%) method. Obviously our RFmodel performs more accurate against the training set and overfit the dataset. 
 
 ### Cross-Validation and Model Evaluation
 
@@ -113,11 +113,11 @@ rfCMtest<-confusionMatrix(testpred, myValidation$classe)
 cat("Out of sample error:" , (1-rfCMtest$overall[1]))
 ```
 
-The estimated out-of-sample error is 1 - the model accuracy is 0.713% for predictions made against the cross-validation set. Hence we choose RF model as our predictor model than decision tree .
+The estimated out-of-sample error is 1 - the model accuracy is 0.7% for predictions made against the cross-validation set. Hence we choose RF model as our predictor model than decision tree .
 
-## Test dataset Prediction
+### Test dataset Prediction
 
-Finally we test our RFmodel against original test data set which consist of 20 cases and write the prediction result into the file as requested in this project. As our RFModel gives an accuracy above 99% on our cross-validation data, we can expect only very few, or none, of the test samples will be missclassified.
+Finally we test our RFmodel against original test data set which consist of 20 cases and write the prediction result into the file as requested in this project. As our RFModel gives an accuracy of 100% on our cross-validation data, we can expect only very few, or none, of the test samples will be missclassified.
 
 ```{r}
 test20pred <- predict(RFModel, Oritest)
@@ -126,7 +126,7 @@ test20pred
 # Write files for Project submission
 write_opfile = function(x){  
   for(i in 1:length(x)){
-    filename = paste0("./output/Output_",i,".txt")
+    filename = paste0("./output/problem_id_",i,".txt")
     write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
   }
 }
@@ -135,8 +135,8 @@ write_opfile(test20pred)
 
 ```
 
-## Conclusion:
+### Conclusion:
 
-Overall, the model is well developed to predict the exercise classes during weight lifting with an accuracy of 99% based on data collected from 6 young health participants. However, we canot expect the model to predict experiments with elderly people and/or using different device, the model may need to retrain/fail to perform well as shown in the analysis.
+Overall, the model is well developed to predict the exercise classes during weight lifting with an accuracy of 100% based on data collected from 6 young health participants. However, we canot expect the model to predict experiments with different set of situations like data collected with elderly people and/or using different device, then we may need to retrain model to perform same as shown in the analysis or fail.
 
 </span>
